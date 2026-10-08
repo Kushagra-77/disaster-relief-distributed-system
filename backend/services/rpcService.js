@@ -1,5 +1,6 @@
 import { nodeService } from "./nodeService.js";
 import { logMessage } from "./messageService.js";
+import { lamportService } from "./lamportService.js";
 
 class RPCService {
   constructor() {
@@ -19,7 +20,10 @@ class RPCService {
     const callerName = callerId === "middleware" ? "Middleware Coordinator" : nodeService.getNodeName(callerId);
     const targetName = nodeService.getNodeName(targetId);
 
-    // 1. Check if caller and target link is severed (unless caller is middleware coordinator, but we check target node status)
+    // Lamport clock update for caller (send event)
+    const senderClock = callerId !== "middleware" ? lamportService.tick(callerId, `RPC Send: ${method}`) : 0;
+
+    // 1. Check if caller and target link is severed
     if (callerId !== "middleware" && targetId !== "middleware") {
       const linkStatus = nodeService.getLinkStatus(callerId, targetId);
       if (linkStatus === "SEVERED") {
@@ -30,8 +34,9 @@ class RPCService {
           action: `RPC ${method}() [FAILED - LINK SEVERED]`,
           details: `Communication channel ${callerName} <-> ${targetName} is severed. RPC dropped.`,
           status: "FAILED",
-          rpcDetails: { txId, method, params, error: "ERR_LINK_SEVERED" },
-          isP2P: callerId !== "middleware"
+          rpcDetails: { txId, method, params, error: "ERR_LINK_SEVERED", lamportClock: senderClock },
+          isP2P: callerId !== "middleware",
+          metadata: { lamportClock: senderClock }
         });
         throw new Error(`RPC Failure: Network link between ${callerName} and ${targetName} is severed`);
       }
@@ -47,8 +52,9 @@ class RPCService {
         action: `RPC ${method}() [FAILED - NODE OFFLINE]`,
         details: `Remote node ${targetName || targetId} is OFFLINE. RPC call failed.`,
         status: "FAILED",
-        rpcDetails: { txId, method, params, error: "ERR_NODE_OFFLINE" },
-        isP2P: callerId !== "middleware"
+        rpcDetails: { txId, method, params, error: "ERR_NODE_OFFLINE", lamportClock: senderClock },
+        isP2P: callerId !== "middleware",
+        metadata: { lamportClock: senderClock }
       });
       throw new Error(`RPC Failure: Node ${targetName || targetId} is unavailable (OFFLINE)`);
     }
@@ -61,13 +67,19 @@ class RPCService {
       action: `RPC Call: ${method}()`,
       details: `Invoking remote method ${method} with parameters: ${JSON.stringify(params)}`,
       status: "PENDING",
-      rpcDetails: { txId, method, params },
-      isP2P: callerId !== "middleware"
+      rpcDetails: { txId, method, params, lamportClock: senderClock },
+      isP2P: callerId !== "middleware",
+      metadata: { lamportClock: senderClock }
     });
 
     // Simulate network transit latency
     if (this.simulatedLatency > 0) {
       await this._delay(this.simulatedLatency);
+    }
+
+    // Target node receives RPC (Lamport receive rule: max(local, recv) + 1)
+    if (targetId && targetId !== "middleware") {
+      lamportService.updateOnReceive(targetId, senderClock, `RPC Execute: ${method}`);
     }
 
     // 4. Dispatch procedure on target node
@@ -96,6 +108,8 @@ class RPCService {
           throw new Error(`Unknown RPC method: ${method}`);
       }
 
+      const responseClock = targetId !== "middleware" ? lamportService.getClock(targetId) : 0;
+
       // Log successful RPC response
       logMessage({
         type: "RPC_RESPONSE",
@@ -106,12 +120,14 @@ class RPCService {
           ? `RPC executed with failure result: ${result.reason}`
           : `Procedure completed successfully. Payload: ${JSON.stringify(result)}`,
         status: result.success === false ? "WARNING" : "SUCCESS",
-        rpcDetails: { txId, method, result },
-        isP2P: callerId !== "middleware"
+        rpcDetails: { txId, method, result, lamportClock: responseClock },
+        isP2P: callerId !== "middleware",
+        metadata: { lamportClock: responseClock }
       });
 
       return result;
     } catch (err) {
+      const errClock = targetId !== "middleware" ? lamportService.getClock(targetId) : 0;
       logMessage({
         type: "RPC_RESPONSE",
         sender: targetName,
@@ -119,8 +135,9 @@ class RPCService {
         action: `RPC Response: ${method}() [ERROR]`,
         details: `Procedure execution threw an error: ${err.message}`,
         status: "FAILED",
-        rpcDetails: { txId, method, error: err.message },
-        isP2P: callerId !== "middleware"
+        rpcDetails: { txId, method, error: err.message, lamportClock: errClock },
+        isP2P: callerId !== "middleware",
+        metadata: { lamportClock: errClock }
       });
       throw err;
     }

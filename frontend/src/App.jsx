@@ -4,6 +4,7 @@ import { io } from "socket.io-client";
 import Navbar from "./components/Navbar.jsx";
 import SystemStats from "./components/SystemStats.jsx";
 import ScenarioPresets from "./components/ScenarioPresets.jsx";
+import FA2Dashboard from "./components/FA2Dashboard.jsx";
 import NodeCard from "./components/NodeCard.jsx";
 import InventoryTable from "./components/InventoryTable.jsx";
 import RequestForm from "./components/RequestForm.jsx";
@@ -27,15 +28,23 @@ export default function App() {
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [isSubmittingTransfer, setIsSubmittingTransfer] = useState(false);
 
-  // Fetch full system state from REST endpoints
+  // FA-2 States
+  const [lamportClocks, setLamportClocks] = useState([]);
+  const [mutexLocks, setMutexLocks] = useState([]);
+  const [electionInfo, setElectionInfo] = useState(null);
+  const [blockchain, setBlockchain] = useState({ blocks: [], totalBlocks: 0 });
+  const [verificationResult, setVerificationResult] = useState(null);
+
+  // Fetch full cluster state from backend
   const fetchClusterState = useCallback(async () => {
     try {
-      const [nodesRes, invRes, linksRes, metricsRes, msgRes] = await Promise.all([
+      const [nodesRes, invRes, linksRes, metricsRes, msgRes, fa2Res] = await Promise.all([
         fetch(`${API_BASE}/api/nodes`).then((r) => r.json()),
         fetch(`${API_BASE}/api/inventory`).then((r) => r.json()),
         fetch(`${API_BASE}/api/links`).then((r) => r.json()),
         fetch(`${API_BASE}/api/metrics`).then((r) => r.json()),
-        fetch(`${API_BASE}/api/messages?limit=150`).then((r) => r.json())
+        fetch(`${API_BASE}/api/messages?limit=150`).then((r) => r.json()),
+        fetch(`${API_BASE}/api/fa2/status`).then((r) => r.json())
       ]);
 
       if (nodesRes && nodesRes.success) setNodes(nodesRes.nodes);
@@ -43,12 +52,19 @@ export default function App() {
       if (linksRes && linksRes.success) setLinks(linksRes.links);
       if (metricsRes && metricsRes.success) setMetrics(metricsRes.metrics);
       if (msgRes && msgRes.success) setMessages(msgRes.messages);
+
+      if (fa2Res && fa2Res.success) {
+        setLamportClocks(fa2Res.lamport || []);
+        setMutexLocks(fa2Res.mutex || []);
+        setElectionInfo(fa2Res.election || null);
+        setBlockchain(fa2Res.blockchain || { blocks: [], totalBlocks: 0 });
+      }
     } catch (err) {
       console.error("Error fetching cluster state:", err);
     }
   }, []);
 
-  // WebSocket real-time subscription
+  // WebSocket subscriptions
   useEffect(() => {
     fetchClusterState();
 
@@ -142,6 +158,7 @@ export default function App() {
     }
   };
 
+  // FA-1 Demo actions
   const handleRunRaceScenario = async () => {
     const res = await fetch(`${API_BASE}/api/scenarios/race-condition`, { method: "POST" });
     const data = await res.json();
@@ -165,9 +182,53 @@ export default function App() {
     });
   };
 
+  // FA-2 Demo Actions
+  const handleRunLamportDemo = async () => {
+    const res = await fetch(`${API_BASE}/api/fa2/lamport/demo`, { method: "POST" });
+    const data = await res.json();
+    fetchClusterState();
+    return data;
+  };
+
+  const handleRunMutexDemo = async () => {
+    const res = await fetch(`${API_BASE}/api/fa2/mutex/demo`, { method: "POST" });
+    const data = await res.json();
+    fetchClusterState();
+    return data;
+  };
+
+  const handleRunElection = async () => {
+    const res = await fetch(`${API_BASE}/api/fa2/election/run`, { method: "POST" });
+    const data = await res.json();
+    fetchClusterState();
+    return data;
+  };
+
+  const handleVerifyBlockchain = async () => {
+    const res = await fetch(`${API_BASE}/api/fa2/blockchain/verify`, { method: "POST" });
+    const data = await res.json();
+    if (data.success) {
+      setVerificationResult(data.verification);
+    }
+    fetchClusterState();
+    return data;
+  };
+
+  const handleCreateBlock = async (payload) => {
+    const res = await fetch(`${API_BASE}/api/fa2/blockchain/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    fetchClusterState();
+    return data;
+  };
+
   const handleReset = async () => {
     setResetting(true);
     setMessages([]);
+    setVerificationResult(null);
     setResetKey((prev) => prev + 1);
     try {
       await fetch(`${API_BASE}/api/system/reset`, { method: "POST" });
@@ -209,16 +270,35 @@ export default function App() {
         resetting={resetting}
       />
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* KPI Metrics Strip */}
         <SystemStats metrics={metrics} />
 
-        {/* 1-Click Evaluation Demonstration Scenarios */}
+        {/* 1-Click Evaluation Demonstration Hub */}
         <ScenarioPresets
           onRunRaceScenario={handleRunRaceScenario}
           onRunFaultScenario={handleRunFaultScenario}
           onRunP2PTransfer={handleRunP2PTransfer}
+          onRunLamportDemo={handleRunLamportDemo}
+          onRunMutexDemo={handleRunMutexDemo}
+          onRunElection={handleRunElection}
+          onVerifyBlockchain={handleVerifyBlockchain}
+          onReset={handleReset}
+        />
+
+        {/* FA-2 Distributed Systems 4-Card Section */}
+        <FA2Dashboard
+          lamportClocks={lamportClocks}
+          mutexLocks={mutexLocks}
+          electionInfo={electionInfo}
+          blockchain={blockchain}
+          onRunLamportDemo={handleRunLamportDemo}
+          onRunMutexDemo={handleRunMutexDemo}
+          onRunElection={handleRunElection}
+          onVerifyBlockchain={handleVerifyBlockchain}
+          onCreateBlock={handleCreateBlock}
+          verificationResult={verificationResult}
         />
 
         {/* Section 1: Distributed Node Dashboard */}
@@ -300,9 +380,9 @@ export default function App() {
       {/* Footer */}
       <footer className="border-t border-slate-800/80 bg-slate-900/50 py-4 mt-8">
         <div className="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Distributed Disaster Relief Inventory Coordination System • FA-1 Distributed Systems</span>
+          <span>Distributed Disaster Relief Inventory Coordination System • FA-1 + FA-2 Distributed Systems</span>
           <span className="font-mono text-[11px] text-cyan-400">
-            Node.js (In-Memory) + React + WebSockets (Socket.IO) + RPC Layer
+            Node.js (In-Memory) + React + WebSockets (Socket.IO) + Lamport + Mutex + Election + Blockchain
           </span>
         </div>
       </footer>

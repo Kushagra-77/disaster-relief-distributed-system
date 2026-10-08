@@ -1,7 +1,11 @@
 import { nodeService } from "./nodeService.js";
 import { rpcService } from "./rpcService.js";
 import { middlewareService } from "./middlewareService.js";
-import { clearMessageLog, logMessage, broadcastStateUpdate } from "./messageService.js";
+import { clearMessageLog, logMessage } from "./messageService.js";
+import { lamportService } from "./lamportService.js";
+import { mutexService } from "./mutexService.js";
+import { electionService } from "./electionService.js";
+import { blockchainService } from "./blockchainService.js";
 
 class FaultToleranceService {
   failNode(nodeId) {
@@ -40,13 +44,18 @@ class FaultToleranceService {
   resetSystem() {
     nodeService.reset();
     middlewareService.reset();
+    lamportService.reset();
+    mutexService.reset();
+    electionService.reset();
+    blockchainService.reset();
     clearMessageLog();
+
     logMessage({
       type: "RECOVERY",
       sender: "System Supervisor",
       receiver: "All Nodes",
       action: "Cluster Reset to Initial Baseline",
-      details: "Distributed nodes, inventories, locks, and network links have been restored.",
+      details: "Distributed nodes, inventories, locks, Lamport clocks, leader state, and blockchain ledger have been restored.",
       status: "SUCCESS"
     });
     return { success: true };

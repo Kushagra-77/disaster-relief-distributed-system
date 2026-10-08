@@ -7,7 +7,7 @@ export default function Navbar({ isConnected, onReset, latency, onLatencyChange,
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         {/* Title & Branding */}
         <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/20">
+          <div className="p-2.5 bg-gradient-to-br from-cyan-500 via-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-purple-500/20">
             <Activity className="w-6 h-6 text-white" />
           </div>
           <div>
@@ -15,12 +15,12 @@ export default function Navbar({ isConnected, onReset, latency, onLatencyChange,
               <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
                 Distributed Disaster Relief System
               </h1>
-              <span className="px-2 py-0.5 text-xs font-semibold uppercase bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded-full">
-                FA-1 Project
+              <span className="px-2 py-0.5 text-xs font-semibold uppercase bg-gradient-to-r from-cyan-500/20 to-purple-500/20 text-cyan-300 border border-cyan-500/30 rounded-full">
+                FA-1 + FA-2 Project
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              In-Memory Nodes • RPC Layer • Message-Oriented & P2P Bus • Fault-Tolerant Middleware
+              In-Memory Nodes • RPC • P2P Bus • Lamport Clocks • Mutex • Leader Election • Blockchain Audit
             </p>
           </div>
         </div>
@@ -58,7 +58,7 @@ export default function Navbar({ isConnected, onReset, latency, onLatencyChange,
             onClick={onReset}
             disabled={resetting}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold border border-slate-700 transition disabled:opacity-50"
-            title="Reset in-memory nodes, inventories and logs to baseline"
+            title="Reset in-memory nodes, inventories, FA-2 state, and logs to baseline"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${resetting ? "animate-spin text-cyan-400" : ""}`} />
             <span>Reset Cluster</span>
