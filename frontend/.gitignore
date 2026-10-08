@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Production Build
+dist/
+dist-ssr/
+*.local
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+
+# OS Files
+.DS_Store
+Thumbs.db
