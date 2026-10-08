@@ -25,12 +25,14 @@ class Block {
 class BlockchainAuditService {
   constructor() {
     this.chain = [];
+    this.isTampered = false;
     this.initialize();
   }
 
   initialize() {
     this.chain = [];
-    // Genesis Block
+    this.isTampered = false;
+    // Genesis Block (Block 0)
     const genesisBlock = new Block(
       0,
       new Date().toISOString(),
@@ -65,7 +67,7 @@ class BlockchainAuditService {
       sourceNode,
       destinationNode,
       resource,
-      quantity,
+      parseInt(quantity, 10) || 0,
       details,
       prevBlock.currentHash
     );
@@ -79,7 +81,7 @@ class BlockchainAuditService {
       sender: "Blockchain Auditor",
       receiver: "Immutable Ledger",
       action: `[Blockchain] Block #${newBlock.blockNumber} Appended`,
-      details: `${eventType}: ${quantity > 0 ? `${quantity} ${resource}` : ""}${details ? ` (${details})` : ""} | Hash: ${newBlock.currentHash.substring(0, 12)}...`,
+      details: `${eventType}: ${quantity > 0 ? `${quantity} ${resource}` : resource} (${sourceNode} → ${destinationNode}) | Hash: ${newBlock.currentHash.substring(0, 12)}...`,
       status: "SUCCESS",
       metadata: {
         blockNumber: newBlock.blockNumber,
@@ -129,7 +131,7 @@ class BlockchainAuditService {
           isValid: false,
           totalBlocks: this.chain.length,
           tamperedBlockNumber: currentBlock.blockNumber,
-          message: `BLOCKCHAIN INTEGRITY: INVALID (Tampering detected at Block #${currentBlock.blockNumber})`
+          message: `BLOCKCHAIN INTEGRITY: INVALID (Hash mismatch at Block #${currentBlock.blockNumber})`
         };
       }
 
@@ -167,6 +169,27 @@ class BlockchainAuditService {
       totalBlocks: this.chain.length,
       message: "BLOCKCHAIN INTEGRITY: VALID"
     };
+  }
+
+  tamperLatestBlock() {
+    if (this.chain.length > 1) {
+      const target = this.chain[this.chain.length - 1];
+      target.quantity += 999; // Corrupt payload without updating hash
+      this.isTampered = true;
+
+      logMessage({
+        type: "BLOCKCHAIN",
+        sender: "Adversary / Tamper Simulator",
+        receiver: "Block #" + target.blockNumber,
+        action: `[Blockchain] Simulated Data Tampering!`,
+        details: `Corrupted quantity in Block #${target.blockNumber} to simulate fraudulent modification.`,
+        status: "FAILED"
+      });
+
+      broadcastStateUpdate({ type: "BLOCKCHAIN_UPDATE", blocks: this.getChain() });
+      return { success: true, tamperedBlock: target.blockNumber };
+    }
+    return { success: false, message: "No blocks available to tamper" };
   }
 
   reset() {

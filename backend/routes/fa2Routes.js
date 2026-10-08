@@ -16,7 +16,8 @@ router.get("/fa2/status", (req, res) => {
     election: electionService.getLeaderInfo(),
     blockchain: {
       blocks: blockchainService.getChain(),
-      totalBlocks: blockchainService.getChain().length
+      totalBlocks: blockchainService.getChain().length,
+      isTampered: blockchainService.isTampered
     }
   });
 });
@@ -54,16 +55,21 @@ router.post("/fa2/blockchain/verify", (req, res) => {
 });
 
 router.post("/fa2/blockchain/create", (req, res) => {
-  const { eventType, sourceNode, destinationNode, resource, quantity, details } = req.body;
+  const { eventType, sourceNode, destinationNode, resource, quantity, details } = req.body || {};
   const newBlock = blockchainService.addBlock({
-    eventType: eventType || "MANUAL_AUDIT_ENTRY",
-    sourceNode: sourceNode || "Supervisor Console",
-    destinationNode: destinationNode || "Disaster Ledger",
-    resource: resource || "Emergency Supplies",
-    quantity: parseInt(quantity, 10) || 10,
-    details: details || "Manual audit inspection block created by operator"
+    eventType: eventType || "RESOURCE_AUDIT_ENTRY",
+    sourceNode: sourceNode || "Warehouse A",
+    destinationNode: destinationNode || "Relief Center A",
+    resource: resource || "Water",
+    quantity: parseInt(quantity, 10) || 25,
+    details: details || "Verified disaster supply inventory block"
   });
   res.json({ success: true, block: newBlock });
+});
+
+router.post("/fa2/blockchain/tamper", (req, res) => {
+  const result = blockchainService.tamperLatestBlock();
+  res.json({ success: true, result });
 });
 
 export default router;

@@ -13,7 +13,11 @@ import {
   RefreshCw,
   Layers,
   Cpu,
-  Hourglass
+  Hourglass,
+  ArrowDown,
+  ShieldAlert,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 
 export default function FA2Dashboard({
@@ -26,9 +30,19 @@ export default function FA2Dashboard({
   onRunElection,
   onVerifyBlockchain,
   onCreateBlock,
+  onTamperBlock,
   verificationResult
 }) {
   const [runningAction, setRunningAction] = useState(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+
+  // Manual Block Form State
+  const [eventType, setEventType] = useState("RESOURCE_ALLOCATED");
+  const [sourceNode, setSourceNode] = useState("Warehouse A");
+  const [destinationNode, setDestinationNode] = useState("Relief Center A");
+  const [resource, setResource] = useState("Water");
+  const [quantity, setQuantity] = useState(25);
+  const [details, setDetails] = useState("Verified relief inventory audit");
 
   const handleAction = async (actionKey, fn) => {
     try {
@@ -39,6 +53,21 @@ export default function FA2Dashboard({
     } finally {
       setRunningAction(null);
     }
+  };
+
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    await handleAction("createManual", () =>
+      onCreateBlock({
+        eventType,
+        sourceNode,
+        destinationNode,
+        resource,
+        quantity: Number(quantity),
+        details
+      })
+    );
+    setShowCreateForm(false);
   };
 
   return (
@@ -300,7 +329,7 @@ export default function FA2Dashboard({
                 <div>
                   <h3 className="text-sm font-bold text-white">4. Blockchain-Based Resource Audit</h3>
                   <p className="text-[11px] text-slate-400">
-                    Immutable SHA-256 cryptographic ledger of all disaster relief operations.
+                    Immutable SHA-256 cryptographic audit chain ({blockchain?.totalBlocks || 1} blocks recorded).
                   </p>
                 </div>
               </div>
@@ -311,73 +340,233 @@ export default function FA2Dashboard({
 
             {/* Verification Status Banner */}
             {verificationResult && (
-              <div className={`p-2 rounded-lg border text-xs font-bold flex items-center gap-2 mb-2 ${
+              <div className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between mb-3 ${
                 verificationResult.isValid
                   ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
-                  : "bg-rose-500/10 text-rose-300 border-rose-500/30"
+                  : "bg-rose-500/10 text-rose-300 border-rose-500/30 animate-pulse"
               }`}>
-                {verificationResult.isValid ? (
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                )}
-                <span>{verificationResult.message}</span>
+                <div className="flex items-center gap-2">
+                  {verificationResult.isValid ? (
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  )}
+                  <span>{verificationResult.message}</span>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400">
+                  Verified {verificationResult.totalBlocks} Blocks
+                </span>
               </div>
             )}
 
-            {/* Vertical Chain of Blocks */}
-            <div className="my-2 space-y-2 max-h-[140px] overflow-y-auto pr-1 font-mono text-[11px]">
-              {blockchain?.blocks &&
-                blockchain.blocks.slice(-3).map((block) => (
-                  <div
-                    key={block.blockNumber}
-                    className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 space-y-1"
+            {/* Toggle Form / Quick Create Bar */}
+            {showCreateForm ? (
+              <form onSubmit={handleFormSubmit} className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2.5 text-xs mb-3">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 font-bold text-slate-200">
+                  <span>Create Custom Audit Block</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateForm(false)}
+                    className="text-slate-400 hover:text-white text-[11px]"
                   >
-                    <div className="flex items-center justify-between font-bold">
-                      <span className="text-emerald-400">BLOCK #{block.blockNumber}</span>
-                      <span className="text-[10px] text-slate-400">{block.eventType}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-400">
-                      <span>{block.sourceNode} → {block.destinationNode}</span>
-                      <span>{block.quantity > 0 ? `${block.quantity} ${block.resource}` : block.resource}</span>
-                    </div>
-                    <div className="text-[9px] text-slate-400 truncate">
-                      Hash: <span className="text-cyan-400 font-semibold">{block.currentHash}</span>
-                    </div>
+                    Cancel
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-semibold mb-0.5">Event Type</label>
+                    <select
+                      value={eventType}
+                      onChange={(e) => setEventType(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-xs"
+                    >
+                      <option value="RESOURCE_ALLOCATED">RESOURCE_ALLOCATED</option>
+                      <option value="RESOURCE_RESERVED">RESOURCE_RESERVED</option>
+                      <option value="RESOURCE_TRANSFERRED">RESOURCE_TRANSFERRED</option>
+                      <option value="INVENTORY_AUDIT_CHECK">INVENTORY_AUDIT_CHECK</option>
+                      <option value="EMERGENCY_DISPATCH">EMERGENCY_DISPATCH</option>
+                    </select>
                   </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-semibold mb-0.5">Resource</label>
+                    <select
+                      value={resource}
+                      onChange={(e) => setResource(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-xs"
+                    >
+                      <option value="Water">Water</option>
+                      <option value="Food">Food</option>
+                      <option value="Medicines">Medicines</option>
+                      <option value="EmergencyEquipment">Emergency Equipment</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-semibold mb-0.5">Source Node</label>
+                    <select
+                      value={sourceNode}
+                      onChange={(e) => setSourceNode(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-xs"
+                    >
+                      <option value="Warehouse A">Warehouse A</option>
+                      <option value="Warehouse B">Warehouse B</option>
+                      <option value="Warehouse C">Warehouse C</option>
+                      <option value="Relief Center A">Relief Center A</option>
+                      <option value="Relief Center B">Relief Center B</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-semibold mb-0.5">Destination</label>
+                    <select
+                      value={destinationNode}
+                      onChange={(e) => setDestinationNode(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-xs"
+                    >
+                      <option value="Relief Center A">Relief Center A</option>
+                      <option value="Relief Center B">Relief Center B</option>
+                      <option value="Warehouse A">Warehouse A</option>
+                      <option value="Warehouse B">Warehouse B</option>
+                      <option value="Warehouse C">Warehouse C</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-semibold mb-0.5">Quantity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 font-mono font-bold text-xs"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={runningAction !== null}
+                  className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs transition flex items-center justify-center gap-1.5"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>Append Block to Blockchain</span>
+                </button>
+              </form>
+            ) : null}
+
+            {/* Vertical Chain of Blocks (ALL blocks displayed vertically with ↓ connections and all 7 fields) */}
+            <div className="my-2 space-y-2 max-h-[220px] overflow-y-auto pr-1 text-xs">
+              {blockchain?.blocks &&
+                blockchain.blocks.map((block, idx) => (
+                  <React.Fragment key={block.blockNumber}>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 space-y-1.5 font-sans relative hover:border-emerald-500/40 transition">
+                      {/* 1. Block Number & 2. Event */}
+                      <div className="flex items-center justify-between font-bold">
+                        <span className="text-emerald-400 font-mono text-[11px] bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                          BLOCK #{block.blockNumber}
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-800 font-semibold">
+                          {block.eventType}
+                        </span>
+                      </div>
+
+                      {/* 3. Resource & 4. Quantity */}
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300 font-medium">
+                        <div>
+                          Resource: <strong className="text-cyan-300">{block.resource}</strong>
+                        </div>
+                        <div className="text-right">
+                          Quantity: <strong className="text-amber-300 font-mono">{block.quantity} units</strong>
+                        </div>
+                      </div>
+
+                      {/* Route & 5. Timestamp */}
+                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                        <span>{block.sourceNode} → {block.destinationNode}</span>
+                        <span className="font-mono text-slate-500">{new Date(block.timestamp).toLocaleTimeString()}</span>
+                      </div>
+
+                      {/* 6. Previous Hash & 7. Current Hash */}
+                      <div className="pt-1.5 border-t border-slate-900 font-mono text-[10px] space-y-0.5 text-slate-400">
+                        <div className="truncate" title={block.previousHash}>
+                          Prev Hash: <span className="text-slate-500">{block.previousHash.substring(0, 16)}...</span>
+                        </div>
+                        <div className="truncate text-cyan-300 font-semibold" title={block.currentHash}>
+                          Curr Hash: {block.currentHash.substring(0, 24)}...
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Vertical Chain Arrow (↓) connecting blocks */}
+                    {idx < blockchain.blocks.length - 1 && (
+                      <div className="flex items-center justify-center py-0.5 text-slate-600">
+                        <ArrowDown className="w-3.5 h-3.5 text-emerald-500/60 animate-bounce" />
+                      </div>
+                    )}
+                  </React.Fragment>
                 ))}
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            <button
-              onClick={() => handleAction("verify", onVerifyBlockchain)}
-              disabled={runningAction !== null}
-              className="flex items-center justify-center gap-1.5 py-2 px-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-bold transition disabled:opacity-50"
-            >
-              <ShieldCheck className={`w-3.5 h-3.5 ${runningAction === "verify" ? "animate-spin" : ""}`} />
-              <span>Verify Blockchain</span>
-            </button>
-            <button
-              onClick={() =>
-                handleAction("createBlock", () =>
-                  onCreateBlock({
-                    eventType: "RESOURCE_AUDIT_ENTRY",
-                    sourceNode: "Warehouse A",
-                    destinationNode: "Relief Center A",
-                    resource: "Water",
-                    quantity: 20,
-                    details: "Manual Disaster Audit Verification Block"
-                  })
-                )
-              }
-              disabled={runningAction !== null}
-              className="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold transition disabled:opacity-50"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span>Create Audit Block</span>
-            </button>
+          <div className="space-y-2 mt-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleAction("verify", onVerifyBlockchain)}
+                disabled={runningAction !== null}
+                className="flex items-center justify-center gap-1.5 py-2 px-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-bold transition disabled:opacity-50"
+              >
+                <ShieldCheck className={`w-3.5 h-3.5 ${runningAction === "verify" ? "animate-spin" : ""}`} />
+                <span>Verify Blockchain</span>
+              </button>
+
+              <button
+                onClick={() => setShowCreateForm(!showCreateForm)}
+                disabled={runningAction !== null}
+                className="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold transition disabled:opacity-50"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>{showCreateForm ? "Close Form" : "Create Audit Block"}</span>
+              </button>
+            </div>
+
+            {/* Quick 1-Click Action & Tamper Simulation */}
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <button
+                type="button"
+                onClick={() =>
+                  handleAction("quickBlock", () =>
+                    onCreateBlock({
+                      eventType: "RESOURCE_AUDIT_ENTRY",
+                      sourceNode: "Warehouse A",
+                      destinationNode: "Relief Center A",
+                      resource: "Water",
+                      quantity: 25,
+                      details: "Quick Operator Disaster Audit Inspection"
+                    })
+                  )
+                }
+                disabled={runningAction !== null}
+                className="py-1 px-2 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded border border-slate-800 font-medium transition text-center truncate"
+              >
+                + Quick Sample Block
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleAction("tamper", onTamperBlock)}
+                disabled={runningAction !== null || (blockchain?.blocks && blockchain.blocks.length <= 1)}
+                className="py-1 px-2 bg-rose-950/20 hover:bg-rose-900/30 text-rose-300 rounded border border-rose-900/50 font-medium transition text-center truncate disabled:opacity-40"
+                title="Corrupts data in latest block to demonstrate SHA-256 verification failure"
+              >
+                Simulate Tamper
+              </button>
+            </div>
           </div>
         </div>
       </div>

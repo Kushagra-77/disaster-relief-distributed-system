@@ -225,6 +225,13 @@ export default function App() {
     return data;
   };
 
+  const handleTamperBlock = async () => {
+    const res = await fetch(`${API_BASE}/api/fa2/blockchain/tamper`, { method: "POST" });
+    const data = await res.json();
+    fetchClusterState();
+    return data;
+  };
+
   const handleReset = async () => {
     setResetting(true);
     setMessages([]);
@@ -298,6 +305,7 @@ export default function App() {
           onRunElection={handleRunElection}
           onVerifyBlockchain={handleVerifyBlockchain}
           onCreateBlock={handleCreateBlock}
+          onTamperBlock={handleTamperBlock}
           verificationResult={verificationResult}
         />
 
