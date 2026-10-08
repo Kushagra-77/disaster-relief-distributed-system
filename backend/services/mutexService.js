@@ -3,13 +3,12 @@ import { lamportService } from "./lamportService.js";
 
 class MutexService {
   constructor() {
-    this.locks = new Map(); // key: "nodeId:resource", value: { status, owner, waiting: [] }
+    this.locks = new Map();
     this.initialize();
   }
 
   initialize() {
     this.locks.clear();
-    // Pre-register main resource critical sections
     const initialKeys = [
       "Warehouse A:Water",
       "Warehouse A:Food",
@@ -45,7 +44,7 @@ class MutexService {
     const lock = this.getLockInfo(resourceKey);
     const reqId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
-    if (lock.status === "AVAILABLE") {
+    if (lock.status === "AVAILABLE" && !lock.currentOwner) {
       lock.status = "LOCKED";
       lock.currentOwner = {
         requesterId,
@@ -61,7 +60,7 @@ class MutexService {
         sender: requesterName,
         receiver: resourceKey,
         action: `[Mutual Exclusion] Lock Acquired`,
-        details: `${requesterName} acquired exclusive lock on Critical Section [${resourceKey}]`,
+        details: `${requesterName} entered Critical Section and acquired exclusive lock on [${resourceKey}]`,
         status: "SUCCESS",
         metadata: { resourceKey, requesterName, status: "LOCKED", lamportClock: clock }
       });
@@ -69,7 +68,7 @@ class MutexService {
       broadcastStateUpdate({ type: "MUTEX_UPDATE", locks: this.getAllLocks() });
       return { acquired: true, waitPromise: null };
     } else {
-      // Lock is currently busy; add to waiting queue
+      // Lock is busy; add to waiting queue
       let resolveWait;
       const waitPromise = new Promise((resolve) => {
         resolveWait = resolve;
@@ -85,7 +84,7 @@ class MutexService {
       };
 
       lock.waitingQueue.push(waitEntry);
-      lock.status = "LOCKED"; // lock remains locked with waiters
+      lock.status = "WAITING"; // Display WAITING when requests are queued
 
       const clock = lamportService.tick(requesterId, `Queued for Lock on ${resourceKey}`);
 
@@ -93,10 +92,10 @@ class MutexService {
         type: "MUTEX",
         sender: requesterName,
         receiver: resourceKey,
-        action: `[Mutual Exclusion] Request Queued (Waiting)`,
-        details: `Critical Section [${resourceKey}] is busy (Owner: ${lock.currentOwner?.requesterName}). ${requesterName} queued in position #${lock.waitingQueue.length}`,
+        action: `[Mutual Exclusion] Request Waiting in Queue`,
+        details: `Critical Section [${resourceKey}] is LOCKED by ${lock.currentOwner?.requesterName}. ${requesterName} is WAITING in queue (Position #${lock.waitingQueue.length})`,
         status: "WARNING",
-        metadata: { resourceKey, requesterName, position: lock.waitingQueue.length, lamportClock: clock }
+        metadata: { resourceKey, requesterName, position: lock.waitingQueue.length, status: "WAITING", lamportClock: clock }
       });
 
       broadcastStateUpdate({ type: "MUTEX_UPDATE", locks: this.getAllLocks() });
@@ -115,21 +114,22 @@ class MutexService {
       sender: prevOwner,
       receiver: resourceKey,
       action: `[Mutual Exclusion] Lock Released`,
-      details: `${prevOwner} released lock on Critical Section [${resourceKey}]`,
+      details: `${prevOwner} completed operation and released lock on Critical Section [${resourceKey}]`,
       status: "INFO",
       metadata: { resourceKey, prevOwner, lamportClock: clock }
     });
 
     if (lock.waitingQueue.length > 0) {
-      // Grant lock to next waiting requester (FIFO order)
+      // Grant lock to next waiting requester in FIFO order
       const nextReq = lock.waitingQueue.shift();
-      lock.status = "LOCKED";
       lock.currentOwner = {
         requesterId: nextReq.requesterId,
         requesterName: nextReq.requesterName,
         quantity: nextReq.quantity,
         acquiredAt: new Date().toISOString()
       };
+      // If there are still more waiters, status is WAITING, otherwise LOCKED
+      lock.status = lock.waitingQueue.length > 0 ? "WAITING" : "LOCKED";
 
       const grantClock = lamportService.tick(nextReq.requesterId, `Lock Granted on ${resourceKey}`);
 
@@ -137,8 +137,8 @@ class MutexService {
         type: "MUTEX",
         sender: "Mutex Coordinator",
         receiver: nextReq.requesterName,
-        action: `[Mutual Exclusion] Lock Granted to Waiter`,
-        details: `Critical Section [${resourceKey}] granted to next queued requester: ${nextReq.requesterName}`,
+        action: `[Mutual Exclusion] Lock Granted to Waiting Requester`,
+        details: `Critical Section [${resourceKey}] now granted to ${nextReq.requesterName}. Entering critical section.`,
         status: "SUCCESS",
         metadata: { resourceKey, newOwner: nextReq.requesterName, lamportClock: grantClock }
       });
@@ -155,9 +155,18 @@ class MutexService {
   getAllLocks() {
     const list = [];
     for (const [key, lock] of this.locks.entries()) {
+      let displayStatus = lock.status;
+      if (!lock.currentOwner) {
+        displayStatus = "AVAILABLE";
+      } else if (lock.waitingQueue && lock.waitingQueue.length > 0) {
+        displayStatus = "WAITING";
+      } else {
+        displayStatus = "LOCKED";
+      }
+
       list.push({
         resourceKey: key,
-        status: lock.status,
+        status: displayStatus,
         currentOwner: lock.currentOwner,
         waitingQueue: lock.waitingQueue.map((w) => ({
           id: w.id,

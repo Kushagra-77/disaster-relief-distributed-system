@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   RefreshCw,
   Layers,
-  Cpu
+  Cpu,
+  Hourglass
 } from "lucide-react";
 
 export default function FA2Dashboard({
@@ -28,8 +29,6 @@ export default function FA2Dashboard({
   verificationResult
 }) {
   const [runningAction, setRunningAction] = useState(null);
-  const [manualResource, setManualResource] = useState("Water");
-  const [manualQty, setManualQty] = useState(25);
 
   const handleAction = async (actionKey, fn) => {
     try {
@@ -140,7 +139,7 @@ export default function FA2Dashboard({
                 <div>
                   <h3 className="text-sm font-bold text-white">2. Distributed Mutual Exclusion</h3>
                   <p className="text-[11px] text-slate-400">
-                    Critical section lock preventing simultaneous write conflicts & over-allocation.
+                    Critical section resource locks preventing simultaneous write conflicts.
                   </p>
                 </div>
               </div>
@@ -150,8 +149,10 @@ export default function FA2Dashboard({
             </div>
 
             {/* Lock Status Display */}
-            <div className="space-y-2.5 my-3 max-h-[175px] overflow-y-auto pr-1">
-              {mutexLocks && mutexLocks.slice(0, 4).map((lock) => {
+            <div className="space-y-2 my-3 max-h-[185px] overflow-y-auto pr-1">
+              {mutexLocks && mutexLocks.map((lock) => {
+                const isAvailable = lock.status === "AVAILABLE";
+                const isWaiting = lock.status === "WAITING";
                 const isLocked = lock.status === "LOCKED";
                 const hasWaiters = lock.waitingQueue && lock.waitingQueue.length > 0;
 
@@ -159,28 +160,50 @@ export default function FA2Dashboard({
                   <div
                     key={lock.resourceKey}
                     className={`p-2.5 rounded-xl border text-xs flex flex-col gap-1.5 transition ${
-                      isLocked
+                      isWaiting
+                        ? "bg-rose-950/20 border-rose-500/40"
+                        : isLocked
                         ? "bg-amber-950/20 border-amber-500/40"
                         : "bg-slate-950/60 border-slate-800"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-200">{lock.resourceKey}</span>
+                      <span className="font-bold text-slate-200 font-mono text-[12px]">{lock.resourceKey}</span>
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
-                          isLocked
+                          isWaiting
+                            ? "bg-rose-500/10 text-rose-400 border-rose-500/30 animate-pulse"
+                            : isLocked
                             ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
                             : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
                         }`}
                       >
-                        {isLocked ? <Lock className="w-2.5 h-2.5" /> : <Unlock className="w-2.5 h-2.5" />}
-                        {isLocked ? "LOCKED" : "AVAILABLE"}
+                        {isWaiting ? (
+                          <Hourglass className="w-2.5 h-2.5" />
+                        ) : isLocked ? (
+                          <Lock className="w-2.5 h-2.5" />
+                        ) : (
+                          <Unlock className="w-2.5 h-2.5" />
+                        )}
+                        {lock.status}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                      <span>Owner: <strong className="text-slate-200">{lock.currentOwner ? lock.currentOwner.requesterName : "None (Free)"}</strong></span>
-                      <span>Waiting Queue: <strong className={hasWaiters ? "text-amber-300" : "text-slate-500"}>{lock.waitingQueue ? lock.waitingQueue.length : 0} req(s)</strong></span>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
+                      <div>
+                        Lock Owner:{" "}
+                        <strong className={lock.currentOwner ? "text-amber-300" : "text-slate-500"}>
+                          {lock.currentOwner ? lock.currentOwner.requesterName : "None (Available)"}
+                        </strong>
+                      </div>
+                      <div className="text-right">
+                        Waiting:{" "}
+                        <strong className={hasWaiters ? "text-rose-400" : "text-slate-500"}>
+                          {hasWaiters
+                            ? `${lock.waitingQueue.map((w) => w.requesterName).join(", ")} (${lock.waitingQueue.length} queued)`
+                            : "0 queued"}
+                        </strong>
+                      </div>
                     </div>
                   </div>
                 );
@@ -194,7 +217,7 @@ export default function FA2Dashboard({
             className="w-full mt-2 flex items-center justify-center gap-2 py-2 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold transition disabled:opacity-50"
           >
             <Play className={`w-3.5 h-3.5 ${runningAction === "mutex" ? "animate-spin" : "fill-current"}`} />
-            <span>{runningAction === "mutex" ? "Acquiring Critical Section..." : "Run Mutual Exclusion Demo"}</span>
+            <span>{runningAction === "mutex" ? "Simulating Mutual Exclusion..." : "Run Mutual Exclusion Demo"}</span>
           </button>
         </div>
 
@@ -302,7 +325,7 @@ export default function FA2Dashboard({
               </div>
             )}
 
-            {/* Vertical Chain of Blocks (Last 3 blocks preview) */}
+            {/* Vertical Chain of Blocks */}
             <div className="my-2 space-y-2 max-h-[140px] overflow-y-auto pr-1 font-mono text-[11px]">
               {blockchain?.blocks &&
                 blockchain.blocks.slice(-3).map((block) => (
